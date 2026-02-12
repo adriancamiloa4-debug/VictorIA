@@ -68,7 +68,7 @@ export async function chatWithSocraticTutor(
   imageData?: string,
   useSearch: boolean = false
 ) {
-  const model = 'gemini-3-pro-preview';
+  const model = 'gemini-1.5-flash';
   
   const contextHistory = [...messages];
   const lastMsgIndex = contextHistory.length - 1;
@@ -124,7 +124,7 @@ export async function chatWithSocraticTutor(
 }
 
 export async function analyzeMathDocument(base64Image: string) {
-  const model = 'gemini-3-pro-preview';
+const model = 'gemini-1.5-flash';
   const { mimeType, data } = parseImageData(base64Image);
   
   const prompt = "Analiza este recurso educativo PNG. Extrae el tema y conceptos clave. NO USES LATEX. Responde en JSON: { 'equations': [], 'summary': '', 'subject': '' }";
