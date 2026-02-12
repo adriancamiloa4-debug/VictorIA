@@ -1,10 +1,11 @@
 
-import { GoogleGenAI, SchemaType as Type } from "@google/generative-ai";
+import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
 import { Message } from "./types";
 
-const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
-
-const SYSTEM_INSTRUCTION = `
+const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY);
+const ai = genAI.getGenerativeModel({
+  model: "gemini-1.5-flash",
+  systemInstruction: `
 Eres "VictorIA", la inteligencia central de CambridgeAI. Tu prioridad absoluta es la estabilidad visual y la claridad pedagógica.
 
 REGLA DE ORO #1: PROHIBICIÓN TOTAL DE LATEX
