@@ -1,7 +1,7 @@
-import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { Message } from "./types";
 
-// 1. Configuración correcta para Vite y la nueva librería
+// Inicialización con la variable de entorno de Vite
 const genAI = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY);
 
 const SYSTEM_INSTRUCTION = `
@@ -9,38 +9,29 @@ Eres "VictorIA", la inteligencia central de CambridgeAI. Tu prioridad absoluta e
 
 REGLA DE ORO #1: PROHIBICIÓN TOTAL DE LATEX
 - BAJO NINGUNA CIRCUNSTANCIA uses LaTeX. 
-- NO uses comandos como \\frac, \\sqrt, \\int o signos de dólar $.
 - Usa solo texto plano y símbolos de teclado estándar.
+- Correcto: "La respuesta es (x + 2) / 5".
 
 REGLA DE ORO #2: PROTOCOLO DE VISIÓN Y FORMATOS
 - CambridgeAI OPERA EXCLUSIVAMENTE CON ARCHIVOS PNG.
-- Si recibes una imagen y hay un error de procesamiento, responde: "Parece que hubo un pequeño problema al leer la imagen. ¿Podrías intentar subirla de nuevo o describirme el ejercicio para ayudarte?"
 
-PROTOCOLO 1: MODO VICTORIA (Tutoría socrática ELI5 - Por defecto)
-- OBJETIVO: Explicar conceptos complejos para que un niño de 5 años los entienda.
-- ESTRUCTURA OBLIGATORIA DE RESPUESTA:
+PROTOCOLO 1: MODO VICTORIA (Tutoría socrática ELI5)
+- ESTRUCTURA OBLIGATORIA:
   [CHAT_RESPONSE]
-  (Tu explicación nivel niño de 5 años usando analogías).
+  (Tu explicación nivel niño de 5 años).
 
   [SIDEBAR_RESOURCES]
-  (Conceptos clave y archivos PNG activos en texto plano).
+  (Conceptos clave).
 
   [FLASHCARDS]
   Tarjeta 1:
-  Nota: [Título corto]
-  Recordar: [Detalle simple]
+  Nota: [Título]
+  Recordar: [Detalle]
   Tarjeta 2: ...
   Tarjeta 3: ...
 
   [STUDY_PLAN]
-  (Hoja de ruta de 3 pasos numerados).
-
-PROTOCOLO 2: MODO EXAMEN (Evaluador Riguroso)
-- ESTRUCTURA OBLIGATORIA:
-  [CHAT_RESPONSE] -> Solo la pregunta del examen.
-  [SIDEBAR_RESOURCES] -> Estado: Pregunta X de 5.
-  [FLASHCARDS] -> [DESACTIVADO].
-  [STUDY_PLAN] -> [PROTOCOLO EVALUACIÓN ACTIVO].
+  (3 pasos numerados).
 `;
 
 function parseImageData(dataUrl: string) {
@@ -54,25 +45,47 @@ function parseImageData(dataUrl: string) {
 export async function chatWithSocraticTutor(
   messages: Message[],
   isExamMode: boolean,
-  imageData?: string,
-  useSearch: boolean = false
+  imageData?: string
 ) {
-  // 2. Inicialización correcta del modelo
   const model = genAI.getGenerativeModel({ 
     model: "gemini-1.5-flash",
     systemInstruction: SYSTEM_INSTRUCTION
   });
   
-  const contextHistory = [...messages];
-  const lastMsgIndex = contextHistory.length - 1;
-  
-  if (isExamMode && lastMsgIndex >= 0 && !contextHistory[lastMsgIndex].content.includes("[MODO EXAMEN]")) {
-    contextHistory[lastMsgIndex].content += "\n[SISTEMA: ACTIVAR PROTOCOLO 2: MODO EXAMEN]";
-  } else if (!isExamMode && lastMsgIndex >= 0 && !contextHistory[lastMsgIndex].content.includes("[MODO VICTORIA]")) {
-    contextHistory[lastMsgIndex].content += "\n[SISTEMA: ACTIVAR PROTOCOLO 1: MODO VICTORIA ELI5]";
+  const history = messages.map(m => ({
+    role: (m.role === 'assistant' ? 'model' : 'user') as 'model' | 'user',
+    parts: [{ text: m.content }]
+  }));
+
+  if (imageData && history.length > 0) {
+    const lastPart = history[history.length - 1];
+    const { mimeType, data } = parseImageData(imageData);
+    lastPart.parts.push({ inlineData: { mimeType, data } });
   }
 
-  const history = contextHistory.map(m => ({
+  try {
+    const result = await model.generateContent({ contents: history });
+    const response = await result.response;
+    return { text: response.text(), grounding: [] };
+  } catch (error) {
+    console.error("Gemini Error:", error);
+    return { text: "Lo siento, hubo un error de conexión.", grounding: [] };
+  }
+}
+
+export async function analyzeMathDocument(base64Image: string) {
+  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+  const { mimeType, data } = parseImageData(base64Image);
+  const prompt = "Analiza este recurso PNG. Responde en JSON: { 'equations': [], 'summary': '', 'subject': '' }";
+
+  try {
+    const result = await model.generateContent([{ text: prompt }, { inlineData: { mimeType, data } }]);
+    const response = await result.response;
+    return JSON.parse(response.text());
+  } catch (error) {
+    return { subject: "Matemáticas", summary: "Listo para análisis", equations: [] };
+  }
+}
     role: (m.role === 'assistant' ? 'model' : 'user') as 'model' | 'user',
     parts: [{ text: m.content }]
   }));
